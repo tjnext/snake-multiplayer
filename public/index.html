@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake Arena - Slither.io Mode</title>
+    <style>
+        body { 
+            background: #121214; 
+            color: white; 
+            text-align: center; 
+            font-family: system-ui, -apple-system, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+        }
+        h1 { margin-bottom: 5px; color: #45f3ff; }
+        #status { font-weight: bold; color: #ffcc00; margin-bottom: 15px; }
+        
+        /* Menu inicial de seleção de Nome */
+        #menu-inicial {
+            background: #1c1c1e;
+            border: 3px solid #45f3ff;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 400px;
+            margin: 80px auto;
+            box-shadow: 0 0 25px rgba(69, 243, 255, 0.2);
+        }
+        #menu-inicial h2 { color: #45f3ff; margin-top: 0; }
+        #input-nome {
+            width: 80%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: 2px solid #3a3a3c;
+            background: #09090b;
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        #btn-jogar {
+            background: #45f3ff;
+            color: #121214;
+            border: none;
+            padding: 10px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        #btn-jogar:hover { background: #00d2e0; box-shadow: 0 0 10px #45f3ff; }
+
+        /* Área da Arena (Ocultada antes do login) */
+        #arena-jogo {
+            display: none;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        canvas { 
+            background: #09090b; 
+            border: 4px solid #45f3ff; 
+            box-shadow: 0 0 20px rgba(69, 243, 255, 0.2);
+            display: block; 
+        }
+        .placar-box {
+            background: #1c1c1e;
+            border: 2px solid #3a3a3c;
+            padding: 15px;
+            min-width: 250px;
+            text-align: left;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .placar-box h2 { margin-top: 0; border-bottom: 2px solid #45f3ff; padding-bottom: 5px; color: #45f3ff; }
+        .jogador-placar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .nick-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 150px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="menu-inicial">
+        <h2>Snake Arena</h2>
+        <p>Escolha seu apelido para entrar na partida:</p>
+        <input type="text" id="input-nome" placeholder="Seu apelido aqui..." maxlength="20" autofocus>
+        <br>
+        <button id="btn-jogar">Entrar na Arena</button>
+    </div>
+
+    <div id="arena-jogo">
+        <h1>Snake Arena - Estilo Slither.io</h1>
+        <div id="status">Conectando...</div>
+
+        <div class="container">
+            <canvas id="game" width="800" height="600"></canvas>
+
+            <div class="placar-box">
+                <h2>Leaderboard</h2>
+                <div id="lista-pontos"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const menuInicial = document.getElementById('menu-inicial');
+            const arenaJogo = document.getElementById('arena-jogo');
+            const inputNome = document.getElementById('input-nome');
+            const btnJogar = document.getElementById('btn-jogar');
+            
+            const statusDiv = document.getElementById('status');
+            const listaPontos = document.getElementById('lista-pontos');
+            const canvas = document.getElementById('game');
+            const ctx = canvas.getContext('2d');
+            const TAMANHO_BLOCO = 20;
+
+            // CONFIGURAÇÃO ONLINE CRÍTICA: Deixando a inicialização vazia, o io() automaticamente
+            // descobre o domínio absoluto onde o site está hospedado, resolvendo o problema de portas locais.
+            const socket = io();
+
+            // Ação de Clique do Botão Jogar
+            btnJogar.addEventListener('click', () => {
+                const nome = inputNome.value.trim();
+                if (nome.length > 0) {
+                    menuInicial.style.display = 'none';
+                    arenaJogo.style.display = 'block';
+                    // Dispara o nome inserido para o servidor registrar
+                    socket.emit('entrarNoJogo', nome);
+                } else {
+                    alert("Por favor, digite um nome válido!");
+                }
+            });
+
+            // Permite também dar Enter no campo de texto para entrar no jogo
+            inputNome.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') btnJogar.click();
+            });
+
+            socket.on('connect', () => {
+                statusDiv.innerText = "Conectado! Pressione as SETAS para se movimentar.";
+                statusDiv.style.color = "#00ffcc";
+            });
+
+            socket.on('disconnect', () => {
+                statusDiv.innerText = "Desconectado do servidor.";
+                statusDiv.style.color = "#ff4444";
+            });
+
+            socket.on('atualizarJogo', (estado) => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Desenha Comidas
+                if (estado.comidas) {
+                    ctx.fillStyle = '#ff2a5f'; 
+                    estado.comidas.forEach(comida => {
+                        ctx.fillRect(
+                            comida.x * TAMANHO_BLOCO + 2, 
+                            comida.y * TAMANHO_BLOCO + 2, 
+                            TAMANHO_BLOCO - 4, 
+                            TAMANHO_BLOCO - 4
+                        );
+                    });
+                }
+
+                listaPontos.innerHTML = "";
+
+                // Desenha Jogadores e Atualiza Placar com Nome + Cor correspondente
+                if (estado.jogadores) {
+                    // Ordena pela pontuação decrescente
+                    const jogadoresOrdenados = Object.keys(estado.jogadores).sort((a, b) => {
+                        return estado.jogadores[b].pontos - estado.jogadores[a].pontos;
+                    });
+
+                    jogadoresOrdenados.forEach(id => {
+                        const player = estado.jogadores[id];
+                        
+                        // Desenha as cobrinhas com suas respectivas cores exclusivas
+                        ctx.fillStyle = player.cor;
+                        player.corpo.forEach((parte) => {
+                            ctx.fillRect(
+                                parte.x * TAMANHO_BLOCO, 
+                                parte.y * TAMANHO_BLOCO, 
+                                TAMANHO_BLOCO - 1, 
+                                TAMANHO_BLOCO - 1
+                            );
+                        });
+
+                        // Constrói a linha do leaderboard com a cor e nome personalizados
+                        const itemPlacar = document.createElement('div');
+                        itemPlacar.className = 'jogador-placar';
+                        itemPlacar.style.color = player.cor;
+                        
+                        const sufixo = (id === socket.id) ? " (Você)" : "";
+                        itemPlacar.innerHTML = `<span class="nick-text" title="${player.nome}">● ${player.nome}${sufixo}</span> <strong>${player.pontos}</strong>`;
+                        listaPontos.appendChild(itemPlacar);
+                    });
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    e.preventDefault();
+                }
+                if (e.key === 'ArrowLeft')  socket.emit('mudarDirecao', 'ESQUERDA');
+                if (e.key === 'ArrowRight') socket.emit('mudarDirecao', 'DIREITA');
+                if (e.key === 'ArrowUp')    socket.emit('mudarDirecao', 'CIMA');
+                if (e.key === 'ArrowDown')  socket.emit('mudarDirecao', 'BAIXO');
+            });
+        });
+    </script>
+</body>
+</html>
