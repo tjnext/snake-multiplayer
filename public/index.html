@@ -2,228 +2,282 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Snake Arena - Slither.io Mode</title>
+    <title>Slither.io Clone Arena</title>
     <style>
         body { 
-            background: #121214; 
+            background: #05070a; 
             color: white; 
             text-align: center; 
-            font-family: system-ui, -apple-system, sans-serif; 
+            font-family: Arial, sans-serif; 
             margin: 0; 
-            padding: 20px; 
+            overflow: hidden;
+            user-select: none;
         }
-        h1 { margin-bottom: 5px; color: #45f3ff; }
-        #status { font-weight: bold; color: #ffcc00; margin-bottom: 15px; }
         
-        /* Menu inicial de seleção de Nome */
         #menu-inicial {
-            background: #1c1c1e;
-            border: 3px solid #45f3ff;
-            border-radius: 12px;
-            padding: 30px;
-            max-width: 400px;
-            margin: 80px auto;
-            box-shadow: 0 0 25px rgba(69, 243, 255, 0.2);
+            background: rgba(20, 25, 35, 0.95);
+            border: 2px solid #506575;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 380px;
+            margin: 140px auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            position: relative;
+            z-index: 10;
         }
-        #menu-inicial h2 { color: #45f3ff; margin-top: 0; }
         #input-nome {
-            width: 80%;
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 6px;
-            border: 2px solid #3a3a3c;
-            background: #09090b;
-            color: white;
-            text-align: center;
-            margin-bottom: 15px;
+            width: 85%; padding: 12px; font-size: 16px; border-radius: 20px;
+            border: 2px solid #405565; background: #0c1015; color: white;
+            text-align: center; margin-bottom: 20px; outline: none;
         }
         #btn-jogar {
-            background: #45f3ff;
-            color: #121214;
-            border: none;
-            padding: 10px 25px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: 0.2s;
+            background: #4ca64c; color: white; border: none; padding: 12px 35px;
+            font-size: 18px; font-weight: bold; border-radius: 20px; cursor: pointer;
+            width: 93%;
         }
-        #btn-jogar:hover { background: #00d2e0; box-shadow: 0 0 10px #45f3ff; }
 
-        /* Área da Arena (Ocultada antes do login) */
-        #arena-jogo {
-            display: none;
-        }
-        .container {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            gap: 20px;
-            max-width: 1100px;
-            margin: 0 auto;
-        }
-        canvas { 
-            background: #09090b; 
-            border: 4px solid #45f3ff; 
-            box-shadow: 0 0 20px rgba(69, 243, 255, 0.2);
-            display: block; 
-        }
-        .placar-box {
-            background: #1c1c1e;
-            border: 2px solid #3a3a3c;
-            padding: 15px;
-            min-width: 250px;
-            text-align: left;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        .placar-box h2 { margin-top: 0; border-bottom: 2px solid #45f3ff; padding-bottom: 5px; color: #45f3ff; }
-        .jogador-placar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 10px 0;
-            font-size: 16px;
-            font-weight: 500;
-        }
-        .nick-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 150px;
-        }
+        #arena-jogo { display: none; position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; position: absolute; left: 0; top: 0; }
     </style>
 </head>
 <body>
 
     <div id="menu-inicial">
-        <h2>Snake Arena</h2>
-        <p>Escolha seu apelido para entrar na partida:</p>
-        <input type="text" id="input-nome" placeholder="Seu apelido aqui..." maxlength="20" autofocus>
-        <br>
-        <button id="btn-jogar">Entrar na Arena</button>
+        <h2>slither.io clone</h2>
+        <input type="text" id="input-nome" placeholder="Nickname" maxlength="16" autofocus>
+        <button id="btn-jogar">Play</button>
     </div>
 
     <div id="arena-jogo">
-        <h1>Snake Arena - Estilo Slither.io</h1>
-        <div id="status">Conectando...</div>
-
-        <div class="container">
-            <canvas id="game" width="800" height="600"></canvas>
-
-            <div class="placar-box">
-                <h2>Leaderboard</h2>
-                <div id="lista-pontos"></div>
-            </div>
-        </div>
+        <canvas id="gameCanvas"></canvas>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         window.addEventListener('DOMContentLoaded', () => {
+            const socket = io();
+            
             const menuInicial = document.getElementById('menu-inicial');
             const arenaJogo = document.getElementById('arena-jogo');
             const inputNome = document.getElementById('input-nome');
             const btnJogar = document.getElementById('btn-jogar');
-            
-            const statusDiv = document.getElementById('status');
-            const listaPontos = document.getElementById('lista-pontos');
-            const canvas = document.getElementById('game');
+            const canvas = document.getElementById('gameCanvas');
             const ctx = canvas.getContext('2d');
-            const TAMANHO_BLOCO = 20;
 
-            // CONFIGURAÇÃO ONLINE CRÍTICA: Deixando a inicialização vazia, o io() automaticamente
-            // descobre o domínio absoluto onde o site está hospedado, resolvendo o problema de portas locais.
-            const socket = io();
+            let RAIO_MAPA = 3000;
+            let servidorEstado = { jogadores: {}, comidas: [] };
+            let exibicaoJogadores = {}; // Guarda posições interpoladas para fluidez a 60fps+
+            let meuId = null;
 
-            // Ação de Clique do Botão Jogar
+            function redimensionarCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', redimensionarCanvas);
+            redimensionarCanvas();
+
             btnJogar.addEventListener('click', () => {
                 const nome = inputNome.value.trim();
-                if (nome.length > 0) {
+                if (nome) {
                     menuInicial.style.display = 'none';
                     arenaJogo.style.display = 'block';
-                    // Dispara o nome inserido para o servidor registrar
+                    meuId = socket.id;
                     socket.emit('entrarNoJogo', nome);
-                } else {
-                    alert("Por favor, digite um nome válido!");
                 }
             });
 
-            // Permite também dar Enter no campo de texto para entrar no jogo
-            inputNome.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') btnJogar.click();
+            inputNome.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnJogar.click(); });
+
+            socket.on('configMapa', (config) => { RAIO_MAPA = config.RAIO_MAPA; });
+            
+            socket.on('atualizarJogo', (estado) => { 
+                servidorEstado = estado; 
+                
+                // Limpa players antigos que saíram
+                Object.keys(exibicaoJogadores).forEach(id => {
+                    if (!estado.jogadores[id]) delete exibicaoJogadores[id];
+                });
             });
 
-            socket.on('connect', () => {
-                statusDiv.innerText = "Conectado! Pressione as SETAS para se movimentar.";
-                statusDiv.style.color = "#00ffcc";
+            window.addEventListener('mousemove', (e) => {
+                if (menuInicial.style.display === 'none') {
+                    let centroX = canvas.width / 2;
+                    let centroY = canvas.height / 2;
+                    let anguloMouse = Math.atan2(e.clientY - centroY, e.clientX - centroX);
+                    socket.emit('mudarAngulo', anguloMouse);
+                }
             });
 
-            socket.on('disconnect', () => {
-                statusDiv.innerText = "Desconectado do servidor.";
-                statusDiv.style.color = "#ff4444";
+            window.addEventListener('mousedown', () => {
+                if (menuInicial.style.display === 'none') socket.emit('definirSprint', true);
             });
 
-            socket.on('atualizarJogo', (estado) => {
+            window.addEventListener('mouseup', () => {
+                if (menuInicial.style.display === 'none') socket.emit('definirSprint', false);
+            });
+
+            function desenharFundoHexagonal(camX, camY, zoom) {
+                let tamanhoHex = 45; 
+                let h = tamanhoHex * Math.sqrt(3);
+                let inicioX = Math.floor((camX - canvas.width / 2 / zoom) / (tamanhoHex * 3)) * (tamanhoHex * 3) - tamanhoHex * 3;
+                let fimX = Math.ceil((camX + canvas.width / 2 / zoom) / (tamanhoHex * 3)) * (tamanhoHex * 3) + tamanhoHex * 3;
+                let inicioY = Math.floor((camY - canvas.height / 2 / zoom) / h) * h - h;
+                let fimY = Math.ceil((camY + canvas.height / 2 / zoom) / h) * h + h;
+
+                ctx.strokeStyle = '#131922';
+                ctx.lineWidth = 1.5;
+
+                for (let x = inicioX; x < fimX; x += tamanhoHex * 3) {
+                    for (let y = inicioY; y < fimY; y += h) {
+                        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + tamanhoHex, y); ctx.lineTo(x + tamanhoHex * 1.5, y + h / 2); ctx.lineTo(x + tamanhoHex, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x - tamanhoHex * 0.5, y + h / 2); ctx.closePath(); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(x + tamanhoHex * 1.5, y + h / 2); ctx.lineTo(x + tamanhoHex * 2.5, y + h / 2); ctx.lineTo(x + tamanhoHex * 3, y + h); ctx.lineTo(x + tamanhoHex * 2.5, y + h * 1.5); ctx.lineTo(x + tamanhoHex * 1.5, y + h * 1.5); ctx.lineTo(x + tamanhoHex, y + h); ctx.closePath(); ctx.stroke();
+                    }
+                }
+            }
+
+            function desenhar() {
+                requestAnimationFrame(desenhar);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Desenha Comidas
-                if (estado.comidas) {
-                    ctx.fillStyle = '#ff2a5f'; 
-                    estado.comidas.forEach(comida => {
-                        ctx.fillRect(
-                            comida.x * TAMANHO_BLOCO + 2, 
-                            comida.y * TAMANHO_BLOCO + 2, 
-                            TAMANHO_BLOCO - 4, 
-                            TAMANHO_BLOCO - 4
-                        );
+                // --- MOTOR DE INTERPOLAÇÃO (Deixa o jogo 100% fluido) ---
+                if (servidorEstado.jogadores) {
+                    Object.keys(servidorEstado.jogadores).forEach(id => {
+                        let sj = servidorEstado.jogadores[id];
+                        if (!exibicaoJogadores[id]) {
+                            // Se o player é novo, copia o corpo diretamente
+                            exibicaoJogadores[id] = JSON.parse(JSON.stringify(sj));
+                        } else {
+                            let ej = exibicaoJogadores[id];
+                            ej.angulo = sj.angulo;
+                            ej.cor = sj.cor;
+                            ej.nome = sj.nome;
+                            ej.pontos = sj.pontos;
+                            ej.sprintando = sj.sprintando;
+
+                            // Alinha dinamicamente o tamanho do array do cliente com o servidor
+                            while (ej.corpo.length < sj.corpo.length) ej.corpo.push({...sj.corpo[sj.corpo.length-1]});
+                            while (ej.corpo.length > sj.corpo.length) ej.corpo.pop();
+
+                            // Executa a aproximação linear (lerp) suave entre a física do server e a tela
+                            for (let i = 0; i < sj.corpo.length; i++) {
+                                if (ej.corpo[i] && sj.corpo[i]) {
+                                    ej.corpo[i].x += (sj.corpo[i].x - ej.corpo[i].x) * 0.35; // Fator de suavização liso
+                                    ej.corpo[i].y += (sj.corpo[i].y - ej.corpo[i].y) * 0.35;
+                                }
+                            }
+                        }
                     });
                 }
 
-                listaPontos.innerHTML = "";
+                let minhaCobraExibicao = exibicaoJogadores[meuId];
+                let camX = 0, camY = 0;
+                let zoom = 1.0; 
 
-                // Desenha Jogadores e Atualiza Placar com Nome + Cor correspondente
-                if (estado.jogadores) {
-                    // Ordena pela pontuação decrescente
-                    const jogadoresOrdenados = Object.keys(estado.jogadores).sort((a, b) => {
-                        return estado.jogadores[b].pontos - estado.jogadores[a].pontos;
+                if (minhaCobraExibicao && minhaCobraExibicao.corpo.length > 0) {
+                    camX = minhaCobraExibicao.corpo[0].x;
+                    camY = minhaCobraExibicao.corpo[0].y;
+                    zoom = 1 / (1 + (minhaCobraExibicao.pontos * 0.0007));
+                    if (zoom < 0.45) zoom = 0.45; 
+                }
+
+                // --- MUNDO JOGO ---
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(zoom, zoom);
+                ctx.translate(-camX, -camY);
+
+                desenharFundoHexagonal(camX, camY, zoom);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, RAIO_MAPA, 0, Math.PI * 2);
+                ctx.lineWidth = 16;
+                ctx.strokeStyle = '#4a0d0d'; 
+                ctx.stroke();
+
+                if (servidorEstado.comidas) {
+                    servidorEstado.comidas.forEach((c, idx) => {
+                        let raioPulsante = 4 + Math.sin(Date.now() / 140 + idx) * 1.2;
+                        ctx.save();
+                        ctx.shadowBlur = 8; ctx.shadowColor = `hsl(${(idx * 65) % 360}, 100%, 60%)`;
+                        ctx.fillStyle = `hsl(${(idx * 65) % 360}, 100%, 75%)`;
+                        ctx.beginPath(); ctx.arc(c.x, c.y, raioPulsante, 0, Math.PI * 2); ctx.fill();
+                        ctx.restore();
                     });
+                }
 
-                    jogadoresOrdenados.forEach(id => {
-                        const player = estado.jogadores[id];
+                // Renderiza a lista de cobras suavizadas
+                Object.keys(exibicaoJogadores).forEach(id => {
+                    let j = exibicaoJogadores[id];
+                    let raioCorpo = 7 + (j.pontos * 0.02);
+
+                    for (let i = j.corpo.length - 1; i >= 0; i--) {
+                        let p = j.corpo[i];
+                        if (!p) continue;
+
+                        ctx.save();
+                        ctx.fillStyle = j.cor;
+                        if (j.sprintando) { ctx.shadowBlur = 12; ctx.shadowColor = '#ffffff'; } 
+                        else { ctx.shadowBlur = 3; ctx.shadowColor = j.cor; }
                         
-                        // Desenha as cobrinhas com suas respectivas cores exclusivas
-                        ctx.fillStyle = player.cor;
-                        player.corpo.forEach((parte) => {
-                            ctx.fillRect(
-                                parte.x * TAMANHO_BLOCO, 
-                                parte.y * TAMANHO_BLOCO, 
-                                TAMANHO_BLOCO - 1, 
-                                TAMANHO_BLOCO - 1
-                            );
-                        });
+                        ctx.beginPath(); ctx.arc(p.x, p.y, i === 0 ? raioCorpo * 1.2 : raioCorpo, 0, Math.PI * 2); ctx.fill();
+                        ctx.restore();
 
-                        // Constrói a linha do leaderboard com a cor e nome personalizados
-                        const itemPlacar = document.createElement('div');
-                        itemPlacar.className = 'jogador-placar';
-                        itemPlacar.style.color = player.cor;
-                        
-                        const sufixo = (id === socket.id) ? " (Você)" : "";
-                        itemPlacar.innerHTML = `<span class="nick-text" title="${player.nome}">● ${player.nome}${sufixo}</span> <strong>${player.pontos}</strong>`;
-                        listaPontos.appendChild(itemPlacar);
+                        if (i === 0) {
+                            ctx.fillStyle = '#ffffff';
+                            let rOlho = raioCorpo * 1.2;
+                            let ox1 = p.x + Math.cos(j.angulo - 0.55) * (rOlho * 0.55);
+                            let oy1 = p.y + Math.sin(j.angulo - 0.55) * (rOlho * 0.55);
+                            let ox2 = p.x + Math.cos(j.angulo + 0.55) * (rOlho * 0.55);
+                            let oy2 = p.y + Math.sin(j.angulo + 0.55) * (rOlho * 0.55);
+                            ctx.beginPath(); ctx.arc(ox1, oy1, rOlho * 0.35, 0, Math.PI * 2); ctx.fill();
+                            ctx.beginPath(); ctx.arc(ox2, oy2, rOlho * 0.35, 0, Math.PI * 2); ctx.fill();
+                            ctx.fillStyle = '#000000';
+                            ctx.beginPath(); ctx.arc(ox1 + Math.cos(j.angulo) * (rOlho * 0.1), oy1 + Math.sin(j.angulo) * (rOlho * 0.1), rOlho * 0.18, 0, Math.PI * 2); ctx.arc(ox2 + Math.cos(j.angulo) * (rOlho * 0.1), oy2 + Math.sin(j.angulo) * (rOlho * 0.1), rOlho * 0.18, 0, Math.PI * 2); ctx.fill();
+                            ctx.fillStyle = '#ffffff'; ctx.font = `normal ${Math.max(12, raioCorpo * 1.1)}px Arial`; ctx.textAlign = 'center'; ctx.fillText(j.nome, p.x, p.y - raioCorpo - 14);
+                        }
+                    }
+                });
+                ctx.restore();
+
+                // --- PLACAR TOP 10 RENDERIZADO NO CANVAS (Fundo transparente) ---
+                if (menuInicial.style.display === 'none' && servidorEstado.jogadores) {
+                    ctx.save();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '16px "Lucida Sans", sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.shadowColor = 'black'; ctx.shadowBlur = 4;
+                    ctx.fillText('Top 10', canvas.width - 20, 30);
+
+                    let ordenados = Object.keys(servidorEstado.jogadores)
+                        .sort((a,b) => servidorEstado.jogadores[b].pontos - servidorEstado.jogadores[a].pontos)
+                        .slice(0, 10);
+
+                    ordenados.forEach((id, index) => {
+                        let p = servidorEstado.jogadores[id];
+                        let posY = 55 + (index * 22);
+
+                        ctx.fillStyle = p.cor || '#ffffff';
+                        ctx.font = id === socket.id ? 'bold 14px "Lucida Sans", sans-serif' : 'normal 14px "Lucida Sans", sans-serif';
+
+                        ctx.textAlign = 'left';
+                        ctx.fillText(`${index + 1}. ${p.nome}`, canvas.width - 240, posY);
+
+                        ctx.textAlign = 'right';
+                        ctx.fillText(`${Math.floor(p.pontos) + 15}`, canvas.width - 20, posY);
                     });
-                }
-            });
 
-            window.addEventListener('keydown', (e) => {
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                    e.preventDefault();
+                    // HUD de tamanho no canto inferior esquerdo
+                    if (minhaCobraExibicao) {
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)'; ctx.fillRect(20, canvas.height - 55, 160, 35);
+                        ctx.fillStyle = '#5cb65c'; ctx.fillRect(20, canvas.height - 55, 4, 35);
+                        ctx.fillStyle = '#ffffff'; ctx.font = '15px Arial'; ctx.textAlign = 'left';
+                        ctx.fillText(`Your length: ${Math.floor(minhaCobraExibicao.pontos) + 15}`, 35, canvas.height - 32);
+                    }
+                    ctx.restore();
                 }
-                if (e.key === 'ArrowLeft')  socket.emit('mudarDirecao', 'ESQUERDA');
-                if (e.key === 'ArrowRight') socket.emit('mudarDirecao', 'DIREITA');
-                if (e.key === 'ArrowUp')    socket.emit('mudarDirecao', 'CIMA');
-                if (e.key === 'ArrowDown')  socket.emit('mudarDirecao', 'BAIXO');
-            });
+            }
+
+            desenhar();
         });
     </script>
 </body>
